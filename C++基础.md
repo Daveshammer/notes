@@ -117,7 +117,7 @@ int*const*      int**         //是可以的！
     int a = 10; // a是左值，它有内存，有名字，值可以修改
     int &b = a;
 
-    int &&c = 20; // 20是右值，它没有内存，没有名字
+    int &&c = 20; // 20是右值，它没有内存，没有名字（临时量）
     c = 30;
 
     int &e = c; // 一个右值引用变量，其本身是个左值
@@ -1370,7 +1370,527 @@ ABCD继承关系如上图，下图左图为普通继承，右图为虚继承：
 ### 四种类型转换方式
 
 ```cpp
+#include <iostream>
+using namespace std;
 
+/*
+C++中的类型转换:
+int a = (int) b;
+const_cast; 去掉const属性的类型转换
+static_cast; 提供编译器认为安全的类型转换，可以用于基类和派生类之间的转换  使用最多
+reinterpret_cast; 类似与C风格的强制类型转换
+dynamic_cast; 主要用于继承机构中，可以支持RTTI类型识别的上下转换
+*/
+
+class Base
+{
+public:
+    virtual void func() = 0;
+};
+class Derive1 : public Base
+{
+public:
+    virtual void func() { cout << "Derive1::func()" << endl; }
+};
+class Derive2 : public Base
+{
+public:
+    virtual void func() { cout << "Derive2::func()" << endl; }
+    void derive02Func() { cout << "Derive2::derive02Func()" << endl; }
+};
+void showFunc(Base *p)
+{
+    /*
+    dynamic_cast会检查p指针是否指向Derive2类型的对象
+    通过p->vfptr->vftable RTTI信息，判断p指针是否指向Derive2类型的对象
+    如果是，转换成功，否则返回nullptr
+    */
+    Derive2 *pd2 = dynamic_cast<Derive2 *>(p);
+
+    // static_cast是编译时期的类型转换
+    // Derive2 *pd2 = static_cast<Derive2 *>(p); // 全部调用derive02Func()
+
+    if (pd2 != nullptr)
+    {
+        pd2->derive02Func();
+    }
+    else 
+    {
+        p->func();
+    }
+}
+
+int main()
+{
+    const int a = 10;
+    double *p1 = (double *)&a; // 可以编译，但不安全
+
+    int *p2 = const_cast<int *>(&a); // 只能转成类型一致的
+    int b = const_cast<int&>(a); // const_cast<这里必须是指针或者引用类型>
+
+    int *p = nullptr;
+    // double *p3 = static_cast<double *>(p); // 从类型‘int*’到类型‘double*’中的 static_cast 无效
+
+    Derive1 d1;
+    Derive2 d2;
+    showFunc(&d1);
+    showFunc(&d2);
+
+    return 0;
+}
 ```
 
 ## STL
+
+# C++高级
+
+## 对象应用优化
+
+```cpp
+#include <iostream>
+using namespace std;
+
+class Test
+{
+public:
+    Test(int a = 10) :ma(a) {cout << "Test(int)" << endl;}
+    ~Test() {cout << "~Test()" << endl;}
+    Test(const Test &t) :ma(t.ma) {cout << "Test(const Test &t)" << endl;}
+    Test& operator=(const Test &t) {ma = t.ma; cout << "Test& operator=(const Test &t)" << endl; return *this;}
+private:
+    int ma;
+};
+
+int main()
+{
+    Test t1; // Test(int)
+    Test t2(t1); // Test(const Test &t)
+    Test t3 = t1; // Test(const Test &t)
+    /*
+    编译器对于对象构造的优化：用临时对象生成新对象的时候，
+    临时对象就不产生了，直接构造新对象，这样就不会调用拷贝构造函数了
+    */
+    Test t4 = Test(20); // 和Test t4(20)一样，都是Test(int)
+    cout << "----------------" << endl;
+
+    t4 = t1; // Test& operator=(const Test &t)
+    /*
+    下面三条语句都会生成临时对象
+    Test(int)
+    Test& operator=(const Test &t)
+    ~Test()
+    */
+    // 显示生成临时对象
+    t4 = Test(30);
+    t4 = (Test)30;
+    // 隐式生成临时对象
+    t4 = 30;
+    cout << "----------------" << endl;
+
+    // Test *p = &Test(40); // error p指向一个临时对象，临时对象在函数结束后就会被销毁
+    const Test &ref = Test(50); // Test(int)
+    cout << "----------------" << endl;
+
+
+    return 0;
+}
+```
+
+三条对象优化的规则：
+
+```cpp
+#include <iostream>
+using namespace std;
+
+class Test
+{
+public:
+    Test(int a = 10) :ma(a) {cout << "Test(int)" << endl;}
+    ~Test() {cout << "~Test()" << endl;}
+    Test(const Test &t) :ma(t.ma) {cout << "Test(const Test &t)" << endl;}
+    Test& operator=(const Test &t) {ma = t.ma; cout << "Test& operator=(const Test &t)" << endl; return *this;}
+    int getData() const {return ma;}
+private:
+    int ma;
+};
+
+/*
+1.函数参数传递过程中，对象优先按引用传递，不要按值传递
+2.函数返回对象的时候，应该优先返回一个临时对象，而不要返回一个定义过的对象（编译器可能已经优化）
+3.接受返回值时对象的函数调用的时候，优先按初始化的方式接受，不要按赋值的方式接受
+*/
+Test GetObject(Test t) // 传引用可以避免 实参 =》 形参 的拷贝构造
+{
+    int val = t.getData();
+    // Test tmp(val);
+    // return tmp; // 编译器可能优化为 return Test(val);
+    return Test(val);
+}
+
+int main()
+{
+    Test t1;
+    Test t2;
+    /*
+    函数调用，实参 =》 形参，拷贝构造形参t
+    函数返回时，拷贝构造可能被优化
+    */
+    t2 = GetObject(t1);
+    // Test t2 = GetObject(t1); // 直接构造，避免Test& operator=(const Test &t
+
+    return 0;
+}
+```
+
+### 右值引用
+
+```cpp
+#include <iostream>
+#include <cstring>
+#include <vector>
+using namespace std;
+
+class CMyString
+{
+public:
+    CMyString(const char *str = nullptr)
+    {
+        cout << "CMyString(const char *)" << endl;
+        if (str == nullptr)
+        {
+            _pstr = new char[1];
+            *_pstr = '\0';
+        }
+        else
+        {
+            int len = strlen(str);
+            _pstr = new char[len + 1];
+            strcpy(_pstr, str);
+        }
+    }
+    CMyString(const CMyString &other)
+    {
+        cout << "CMyString(const CMyString &other)" << endl;
+        int len = strlen(other._pstr);
+        _pstr = new char[len + 1];
+        strcpy(_pstr, other._pstr);
+    }
+    CMyString(CMyString &&other)
+    {
+        cout << "CMyString(CMyString &&other)" << endl;
+        // 资源转移
+        _pstr = other._pstr;
+        other._pstr = nullptr;
+    }
+
+    CMyString &operator=(const CMyString &other)
+    {
+        cout << "CMyString &operator=(const CMyString &other)" << endl;
+        if (this != &other)
+        {
+            delete[] _pstr;
+            int len = strlen(other._pstr);
+            _pstr = new char[len + 1];
+            strcpy(_pstr, other._pstr);
+        }
+        return *this;
+    }
+    CMyString &operator=(CMyString &&other)
+    {
+        cout << "CMyString &operator=(const CMyString &&other)" << endl;
+        if (this != &other)
+        {
+            delete[] _pstr;
+            _pstr = other._pstr;
+            other._pstr = nullptr;
+        }
+        return *this;
+    }
+    ~CMyString()
+    {
+        cout << "~CMyString()" << endl;
+        delete[] _pstr;
+        _pstr = nullptr;
+    }
+    const char *c_str() const { return _pstr; }
+
+private:
+    char *_pstr;
+
+    friend CMyString operator+(const CMyString &str1, const CMyString &str2);
+    friend ostream &operator<<(ostream &os, const CMyString &str);
+};
+
+CMyString GetString(CMyString &str)
+{
+    const char *pstr = str.c_str();
+    return CMyString(pstr);
+}
+
+CMyString operator+(const CMyString &str1, const CMyString &str2)
+{
+    int len = strlen(str1.c_str()) + strlen(str2.c_str());
+    // char *pstr = new char[len + 1];
+    // strcpy(pstr, str1.c_str());
+    // strcat(pstr, str2.c_str());
+    // CMyString tmpStr(pstr);
+    // delete[] pstr;
+    // return tmpStr;
+
+    CMyString tmpStr;
+    tmpStr._pstr = new char[len + 1];
+    strcpy(tmpStr._pstr, str1.c_str());
+    strcat(tmpStr._pstr, str2.c_str());
+    return tmpStr;
+}
+ostream &operator<<(ostream &os, const CMyString &str)
+{
+    os << str.c_str();
+    return os;
+}
+
+int main()
+{
+#if 0
+    CMyString str1("aaaaaaaaaaa"); // CMyString(const char *)
+    CMyString str2;                // CMyString(const char *)
+    // 会首选带右值引用的赋值，如果没有，再去找带左值引用的赋值
+    str2 = GetString(str1);        // CMyString(const char *) 和 CMyString &operator=(const CMyString &&other)
+    // CMyString str2 = GetString(str1); // 直接构造，没有拷贝 CMyString(const char *)
+    cout << str2.c_str() << endl;
+
+    CMyString &&str3 = CMyString("aaa"); // 可以把右值绑定到一个右值引用上
+    CMyString &str4 = str3;              // 右值引用有内存有名字，可以绑定到左值引用上
+#endif
+
+#if 0
+    CMyString str1 = "hello";
+    CMyString str2 = "world";
+    CMyString str3 = str1 + str2; // 直接构造，没有拷贝
+    cout << str3 << endl;
+#endif
+
+#if 1
+    vector<CMyString> vec;
+    vec.reserve(10);
+
+    CMyString str1 = "aaa"; // CMyString(const char *)
+    vec.push_back(str1); // CMyString(const CMyString &other)
+
+    vec.push_back(CMyString("bbb")); // CMyString(const char *) 和 CMyString(CMyString &&other)
+
+
+#endif
+
+    return 0;
+}
+```
+
+### forward完美转发
+
+`vector`源码的`emplace_back`根据参数是左值还是右值选择不同的`construct`方法
+
+```cpp
+#if __cplusplus >= 201103L
+  template<typename _Tp, typename _Alloc>
+    template<typename... _Args>
+#if __cplusplus > 201402L
+      typename vector<_Tp, _Alloc>::reference
+#else
+      void
+#endif
+      vector<_Tp, _Alloc>::
+      emplace_back(_Args&&... __args)
+      {
+    if (this->_M_impl._M_finish != this->_M_impl._M_end_of_storage)
+      {
+        _GLIBCXX_ASAN_ANNOTATE_GROW(1);
+        _Alloc_traits::construct(this->_M_impl, this->_M_impl._M_finish,
+                     std::forward<_Args>(__args)...);
+        ++this->_M_impl._M_finish;
+        _GLIBCXX_ASAN_ANNOTATE_GREW(1);
+      }
+    else
+      _M_realloc_insert(end(), std::forward<_Args>(__args)...);
+#if __cplusplus > 201402L
+    return back();
+#endif
+      }
+#endif
+
+
+
+       template<typename _Tp, typename... _Args>
+    static
+    _Require<__and_<__not_<__has_construct<_Tp, _Args...>>,
+                   is_constructible<_Tp, _Args...>>>
+    _S_construct(_Alloc&, _Tp* __p, _Args&&... __args) //__p为参数类型，
+    { ::new((void*)__p) _Tp(std::forward<_Args>(__args)...); }
+```
+
+## 智能指针
+
+### 不带引用计数的智能指针
+
+```cpp
+#include <iostream>
+#include <memory>
+using namespace std;
+
+// 利用栈上的对象出作用域自动析构，来做到资源的自动释放
+template <typename T>
+class CSmartPtr
+{
+public:
+    CSmartPtr(T *ptr = nullptr) : m_ptr(ptr) {}
+    ~CSmartPtr() { delete m_ptr; }
+    CSmartPtr(const CSmartPtr &other) { m_ptr = new T(*other.m_ptr); }
+    T &operator*() { return *m_ptr; }
+    T *operator->() { return m_ptr; }
+
+private:
+    T *m_ptr;
+};
+
+int main()
+{
+#if 0
+    CSmartPtr<int> ptr1(new int); // 利用栈上的对象出作用域自动析构，来做到资源的自动释放
+    *ptr1 = 20; // T& operator*()
+
+    class Test
+    {
+    public:
+        void test() { cout << "call Test::test" << endl; }
+    };
+    CSmartPtr<Test> ptr2(new Test());
+    ptr2->test();
+#endif
+
+#if 0
+    CSmartPtr<int> ptr1(new int); 
+    CSmartPtr<int> ptr2(ptr1); // 必须实现深拷贝，否则会出现释放同一块内存的情况
+
+    auto_ptr<int> ptr3(new int);
+    auto_ptr<int> ptr4(ptr3); // 资源转移，ptr3的资源转移到ptr4，ptr3的资源被释放
+    *ptr4 = 20;
+    cout << *ptr3 << endl; // Segmentation fault，因为ptr3的资源已经被释放
+#endif
+
+#if 0
+    /*
+    auto_ptr 浅拷贝，资源转移，会出现重复释放的问题，不推荐使用
+    scoped_ptr 不支持拷贝构造和赋值操作
+    scoped_ptr(const scoped_ptr<T>&) = delete;
+    scoped_ptr& operator=(const scoped_ptr<T>&) = delete;
+
+    推荐使用unique_ptr，支持移动语义，支持自定义删除器
+    unique_ptr(const unique_ptr&) = delete;
+    unique_ptr& operator=(const unique_ptr&) = delete;
+    unique_ptr(unique_ptr&&) 
+    unique_ptr& operator=(unique_ptr&&)
+    */
+    unique_ptr<int> ptr1(new int);
+    unique_ptr<int> ptr2(std::move(ptr1));
+#endif
+
+    /*
+    带引用技术的指针指针shared_ptr和weak_ptr
+    */
+
+    return 0;
+}
+```
+
+### 实现带引用技术的智能指针
+
+```cpp
+#include <iostream>
+#include <memory>
+using namespace std;
+
+// 对资源进行引用计数的类
+template <typename T>
+class RefCnt
+{
+public:
+    RefCnt(T *ptr = nullptr) : m_ptr(ptr)
+    {
+        if (m_ptr != nullptr)
+            m_cnt = 1;
+    }
+    void addRef() { m_cnt++; }
+    int delRef() { return --m_cnt; }
+    int getCnt() { return m_cnt; }
+
+private:
+    T *m_ptr;
+    int m_cnt;
+};
+
+// 利用栈上的对象出作用域自动析构，来做到资源的自动释放
+template <typename T>
+class CSmartPtr
+{
+public:
+    CSmartPtr(T *ptr = nullptr) : m_ptr(ptr)
+    {
+        if (m_ptr != nullptr)
+            m_pRefCnt = new RefCnt<T>(m_ptr);
+    }
+    ~CSmartPtr()
+    {
+        if (0 == m_pRefCnt->delRef()) // 引用计数为0时，释放资源
+        {
+            delete m_ptr;
+            m_ptr = nullptr;
+        }
+    }
+    CSmartPtr(const CSmartPtr &src) : m_ptr(src.m_ptr), m_pRefCnt(src.m_pRefCnt)
+    {
+        if (m_ptr != nullptr)
+            m_pRefCnt->addRef(); // 引用计数加1
+    }
+    CSmartPtr<T> &operator=(const CSmartPtr &src)
+    {
+        if (this == &src)
+            return *this;
+
+        m_ptr = src.m_ptr;
+        m_pRefCnt = src.m_pRefCnt;
+        m_pRefCnt->addRef(); // 引用计数加1
+        
+        return *this;
+    }
+    T &operator*() { return *m_ptr; }
+    T *operator->() { return m_ptr; }
+    RefCnt<T> *getRefCnt() { return m_pRefCnt; }
+
+private:
+    T *m_ptr;             // 指向资源的指针
+    RefCnt<T> *m_pRefCnt; // 引用计数
+};
+
+int main()
+{
+#if 1
+    CSmartPtr<int> ptr1(new int);
+    CSmartPtr<int> ptr2(ptr1);
+    cout << ptr2.getRefCnt()->getCnt() << endl;
+    CSmartPtr<int> ptr3;
+    ptr3 = ptr2;
+
+    *ptr1 = 20;
+    cout << ptr2.getRefCnt()->getCnt() << endl;
+    cout << "*ptr2" << " " << *ptr3 << endl;
+
+#endif
+        return 0;
+}
+```
+
+### shared_ptr的交叉引用问题
+
+```cpp
+
+```
