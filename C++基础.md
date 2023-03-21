@@ -1859,7 +1859,7 @@ public:
         m_ptr = src.m_ptr;
         m_pRefCnt = src.m_pRefCnt;
         m_pRefCnt->addRef(); // 引用计数加1
-        
+
         return *this;
     }
     T &operator*() { return *m_ptr; }
@@ -1890,6 +1890,264 @@ int main()
 ```
 
 ### shared_ptr的交叉引用问题
+
+```cpp
+#include <iostream>
+#include <memory>
+using namespace std;
+
+/*
+shared_ptr: 可以改变资源的引用计数
+weak_ptr: 不会改变资源的引用计数
+
+强智能指针循环引用（交叉引用问题）:
+造成new出来的资源无法释放，内存泄漏问题
+因此要在定义对象的时候，使用强智能指针；引用对象的时候，使用弱智能指针
+*/
+
+class B;
+class A
+{
+public:
+    A() { cout << "A()" << endl; }
+    ~A() { cout << "~A()" << endl; }
+    void testA()
+    {
+        cout << "testA()" << endl;
+    }
+
+    weak_ptr<B> m_ptrb; // shared_ptr<B> m_ptrb;
+};
+class B
+{
+public:
+    B() { cout << "B()" << endl; }
+    ~B() { cout << "~B()" << endl; }
+    void func()
+    {
+        // m_ptra->testA();
+        shared_ptr<A> pa = m_ptra.lock();
+        if (pa != nullptr)
+        {
+            pa->testA();
+        }
+    }
+
+    weak_ptr<A> m_ptra; // shared_ptr<A> m_ptr;
+};
+
+int main()
+{
+    shared_ptr<A> pa(new A);
+    shared_ptr<B> pb(new B);
+
+    pa->m_ptrb = pb; //如果都采用shared_ptr，会造成循环引用，导致内存泄漏
+    pb->m_ptra = pa; //如果都采用weak_ptr，不会造成循环引用，不会导致内存泄漏
+    pb->func();
+
+
+    cout << pa.use_count() << endl;
+    cout << pb.use_count() << endl;
+
+    return 0;
+}
+```
+
+### 线程安全问题
+
+```cpp
+#include <iostream>
+#include <memory>
+#include <thread>
+using namespace std;
+
+class A
+{
+public:
+    A() { cout << "A()" << endl; }
+    ~A() { cout << "~A()" << endl; }
+    void testA()
+    {
+        cout << "testA()" << endl;
+    }
+};
+
+void handler01(weak_ptr<A> q)
+{
+    std::this_thread::sleep_for(std::chrono::seconds(1)); // 睡眠1秒，等待主线程中的A对象析构
+    shared_ptr<A> p = q.lock();
+    if (p != nullptr)
+    {
+        p->testA();
+    }
+    else
+    {
+        cout << "A对象已经析构，不能再访问" << endl;
+    }
+}
+
+int main()
+{
+    {
+        shared_ptr<A> p(new A());
+        thread t1(handler01, weak_ptr<A>(p));
+        t1.detach(); // 分离线程，线程独立运行，主线程不会等待线程t1执行完毕
+    } // ~A()
+    std::this_thread::sleep_for(std::chrono::seconds(2)); // 睡眠2秒，等待线程t1执行完毕
+
+
+    return 0;
+}
+```
+
+输出如下：
+
+```
+A()
+~A()
+A对象已经析构，不能再访问
+```
+
+### 自定义删除器
+
+```cpp
+#include <iostream>
+#include <memory>
+#include <functional>
+using namespace std;
+
+template <typename T>
+class MyDeletor
+{
+public:
+    void operator()(T *ptr)
+    {
+        cout << "MyDeletor()" << endl;
+        delete[] ptr;
+    }
+};
+template <typename T>
+class MyFileDeletor
+{
+public:
+    void operator()(T *ptr)
+    {
+        cout << "MyFileDeletor()" << endl;
+        fclose(ptr);
+    }
+};
+
+int main()
+{
+    unique_ptr<int, MyDeletor<int>> ptr1(new int[100]);
+    unique_ptr<FILE, MyFileDeletor<FILE>> ptr2(fopen("test.txt", "w"));
+
+    // lambda表达式 =》 函数对象 function
+    unique_ptr<int, function<void(int *)>> ptr3(new int[100], [](int *ptr) -> void
+                                                {
+        cout << "lambda() release new int[100]" << endl;
+        delete []ptr; });
+
+    unique_ptr<FILE, function<void(FILE *)>> ptr4(fopen("test.txt", "w"), [](FILE *ptr)
+                                                  {
+        cout << "lambda() release fopen()" << endl;
+        fclose(ptr); });
+
+    return 0;
+}
+```
+
+## 绑定器和函数对象
+
+### bind1st底层实现
+
+```cpp
+#include <iostream>
+#include <vector>
+#include <functional>
+#include <algorithm>
+using namespace std;
+
+template<typename Container>
+void showContainer(Container &con)
+{
+    typename Container::iterator it = con.begin();
+    for (; it != con.end(); ++ it)
+    {
+        cout << *it << " ";
+    }
+    cout << endl;
+}
+
+template<typename Iterator, typename Compare>
+Iterator my_find_if(Iterator first, Iterator last, Compare comp) 
+{
+    for (; first != last; ++ first) // 4
+    {
+        if (comp(*first)) // 6
+        {
+            return first;
+        }
+    }
+    return last;
+}
+
+template<typename Compare, typename T>
+class _mybind1st
+{
+public:
+    _mybind1st(Compare comp, const T &val)
+        : _comp(comp), _val(val) // 2
+    {
+    }
+    bool operator()(const T &second)
+    {
+        // second就是my_find_if中的*first
+        return _comp(_val, second); // 7
+    }
+private:
+    Compare _comp;
+    T _val;
+};
+
+// mybind1st(greater<int>(), 70)
+template<typename Compare, typename T>
+_mybind1st<Compare, T> mybind1st(Compare comp, const T &val)
+{
+    // 直接使用函数模板，好处是，可以进行类型的推演
+    return _mybind1st<Compare, T>(comp, val); // 1
+} // 3
+
+int main()
+{
+    vector<int> vec;
+    srand(time(nullptr));
+    for (int i = 0; i < 20; ++ i) 
+    {
+        vec.push_back(rand() % 100 + 1);
+    }
+    showContainer(vec);
+    sort(vec.begin(), vec.end(), greater<int>()); // sort in descending order
+    showContainer(vec);
+
+    // 把70按顺序插入到vec容器中    找第一个小于70的数字
+    // 绑定器 + 二元函数对象 = 一元函数对象
+    // std::vector<int>::iterator my_find_if<std::vector<int>::iterator, _mybind1st<std::greater<int>, int>>(std::vector<int>::iterator first, std::vector<int>::iterator last, _mybind1st<std::greater<int>, int> comp)
+    // _mybind1st<std::greater<int>, int> mybind1st<std::greater<int>, int>(std::greater<int> comp, const int &val)
+    auto it1 = my_find_if(vec.begin(), vec.end(), mybind1st(greater<int>(), 70));
+    if (it1 != vec.end())
+    {
+        vec.insert(it1, 70);
+    }
+    showContainer(vec);
+
+    return 0;
+}
+```
+
+### function
+
+funcion的使用示例
 
 ```cpp
 
