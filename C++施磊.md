@@ -1,33 +1,3 @@
-## Template
-
-编译器是没办法去根据返回值推断类型的。
-
-```cpp
-float data[1024];
-
-template <typename T> T GetValue(int i)
-{
-    return static_cast<T>(data[i]); 
-}
-
-float a = GetValue(0);    // 出错了！
-int b = GetValue(1);    // 也出错了！
-```
-
-在部分推导、部分指定的情况下，编译器对模板参数的顺序是有限制的：**先写需要指定的模板参数，再把能推导出来的模板参数放在后面**。
-
-在这个例子中，能推导出来的是 `SrcT`，需要指定的是 `DstT`。
-
-```cpp
-template <typename DstT, typename SrcT> DstT c_style_cast(SrcT v)    // 模板参数 DstT 需要人肉指定，放前面。
-{
-    return (DstT)(v);
-}
-
-int v = 0;
-float i = c_style_cast<float>(v);  // 形象地说，DstT会先把你指定的参数吃掉，剩下的就交给编译器从函数参数列表中推导啦。 
-```
-
 # C++基础
 
 ## const
@@ -1873,7 +1843,6 @@ private:
 
 int main()
 {
-#if 1
     CSmartPtr<int> ptr1(new int);
     CSmartPtr<int> ptr2(ptr1);
     cout << ptr2.getRefCnt()->getCnt() << endl;
@@ -1884,7 +1853,6 @@ int main()
     cout << ptr2.getRefCnt()->getCnt() << endl;
     cout << "*ptr2" << " " << *ptr3 << endl;
 
-#endif
         return 0;
 }
 ```
@@ -1926,7 +1894,7 @@ public:
     void func()
     {
         // m_ptra->testA();
-        shared_ptr<A> pa = m_ptra.lock();
+        shared_ptr<A> pa = m_ptra.lock(); // 转换成功说明对象还存在
         if (pa != nullptr)
         {
             pa->testA();
@@ -2150,5 +2118,881 @@ int main()
 funcion的使用示例
 
 ```cpp
+#include <iostream>
+#include <vector>
+#include <map>
+#include <functional>
+#include <algorithm>
+#include <ctime>
+#include <string>
+using namespace std;
 
+void hello1()
+{
+    cout << "hello1" << endl;
+}
+void hello2(string str)
+{
+    cout << str << endl;
+}
+int sum(int a, int b)
+{
+    return a + b;
+}
+class Test
+{
+public:
+    void hello(string str) { cout << str << endl; }
+};
+
+int main()
+{
+    function<void()> func1 = hello1;
+    func1(); // func.operator() => hello1()
+
+    function<void(string)> func2 = hello2;
+    func2("hello2"); // func.operator() => hello2("hello2")
+
+    function<int(int, int)> func3 = sum;
+    cout << func3(20, 30) << endl;
+
+    function<int(int, int)> func4 = [](int a, int b) -> int { return a + b; };
+    cout << func4(20, 30) << endl;
+
+    function<void(Test*, string)> func5 = &Test::hello;
+    func5(&Test(), "Test::hello");
+
+    return 0;
+}
+```
+
+### 模板的完全特例化和部分特例化
+
+```cpp
+#include <iostream>
+#include <cstring>
+#include <typeinfo>
+using namespace std;
+
+template <typename T>
+void func(T a)
+{
+    cout << typeid(T).name() << endl;
+}
+int sum(int a, int b)
+{
+    return a + b;
+}
+
+template <typename R, typename A1, typename A2>
+void func2(R (*pfunc)(A1, A2))
+{
+    cout << typeid(R).name() << endl;
+    cout << typeid(A1).name() << endl;
+    cout << typeid(A2).name() << endl;
+}
+template<typename R, typename T, typename A1, typename A2>  
+void func3(R(T::*pfunc)(A1, A2))
+{
+    cout << typeid(R).name() << endl;
+    cout << typeid(T).name() << endl;
+    cout << typeid(A1).name() << endl;
+    cout << typeid(A2).name() << endl;
+}
+
+class Test
+{
+public:
+    int sum(int a, int b)
+    {
+        return a + b;
+    }
+};
+
+int main()
+{
+    func(10);
+    func("aaaa");
+    func(sum);
+    func2(sum);
+    func3(&Test::sum);
+
+    return 0;
+}
+
+#if 0
+template<typename T>
+class Vector
+{
+public:
+    Vector() { cout << "Vector()" << endl; }
+};
+// 下面这个是对char*类型的完全特例化版本
+template<>
+class Vector<char *>
+{
+public:
+    Vector() { cout << "Vector<char *>" << endl; }
+};
+// 下面这个是对指针类型提供的部分特例化版本
+template<typename T>
+class Vector<T *>
+{
+public:
+    Vector() { cout << "Vector<T *>" << endl; }
+};
+// 下面这个是对函数指针（有返回值，有两个形参变量）类型提供的部分特例化版本
+template<typename R, typename A1, typename A2>
+class Vector<R(*)(A1, A2)>
+{
+public:
+    Vector() { cout << "Vector<R(*)(A1, A2)>" << endl; }
+};
+
+int sum(int a, int b)
+{
+    return a + b;
+}
+int main()
+{
+    Vector<int> vec1; // Vector()
+    // Vector<char *> vec2; /Vector<char *>
+    Vector<int *> vec3; // Vector<T *>
+    Vector<int(*) (int, int)> vec4; // Vector<R(*)(A1, A2)>
+
+    typedef int(*PFUNC1)(int, int); // PFUNC1是函数指针类型
+    PFUNC1 pfunc1 = sum;
+    cout << pfunc1(10, 20) << endl;
+
+    typedef int PFUNC2(int, int); // PFUNC2是函数类型
+    PFUNC2 *pfunc2 = sum;
+    cout << (*pfunc2) (10, 20) << endl;
+
+    return 0;    
+}
+#endif
+
+#if 0
+template<typename T>
+bool compare(T a, T b)
+{
+    cout << "template compare" << endl;
+    return a > b;
+}
+template<>
+bool compare(const char *a, const char *b)
+{
+    cout << "compare<const char *>" << endl;
+    return strcmp(a, b) > 0;
+}
+
+int main()
+{
+    compare(10, 20);
+    compare("aaa", "bbb");
+
+
+    return 0;
+}
+#endif
+```
+
+### function函数类型的实现原理
+
+```cpp
+#include <iostream>
+#include <typeinfo>
+#include <string>
+#include <functional>
+using namespace std;
+
+void hello(string str) { cout << str << endl; }
+int sum(int a, int b) { return a + b; }
+
+template<typename Fty>
+class myfunction {};
+
+#if 0
+template<typename R, typename A1>
+class myfunction<R(A1)>
+{
+public:
+    using PFUNC = R(*)(A1);
+    myfunction(PFUNC pfunc)
+        : _pfunc(pfunc)
+    {
+    }
+    R operator()(A1 arg)
+    {
+        return _pfunc(arg);
+    }
+private:
+    PFUNC _pfunc;
+};
+template<typename R, typename A1, typename A2>
+class myfunction<R(A1, A2)>
+{
+public:
+    using PFUNC = R(*)(A1, A2);
+    myfunction(PFUNC pfunc)
+        : _pfunc(pfunc)
+    {
+    }
+    R operator()(A1 arg1, A2 arg2)
+    {
+        return _pfunc(arg1, arg2);
+    }
+private:
+    PFUNC _pfunc;
+};
+#endif
+
+template<typename R, typename... A>
+class myfunction<R(A...)>
+{
+public:
+    using PFUNC = R(*)(A...);
+    myfunction(PFUNC pfunc)
+        : _pfunc(pfunc)
+    {
+    }
+    R operator()(A... arg)
+    {
+        return _pfunc(arg...);
+    }
+private:
+    PFUNC _pfunc;
+};
+
+int main()
+{
+    myfunction<void(string)> func1 = hello;
+    func1("hello"); // func.operator() => hello("hello")
+
+    myfunction<int(int, int)> func2 = sum;
+    cout << func2(20, 30) << endl;
+
+    return 0;
+}
+```
+
+### bind和function实现线程池
+
+```cpp
+#include <iostream>
+#include <typeinfo>
+#include <string>
+#include <functional>
+#include <thread>
+#include <vector>
+using namespace std;
+
+class Thread
+{
+public:
+    Thread(function<void(int)> func, int no) : _func(func), _no(no) {}
+    thread start() { return thread(_func); }
+
+private:
+    function<void(int)> _func; // 线程函数，需要一个int类型的参数
+    int _no; //线程编号
+};
+class ThreadPool
+{
+public:
+    ThreadPool() {}
+    ~ThreadPool()
+    {
+        // 释放Thread对象占用的堆资源
+        for (int i = 0; i < _pool.size(); ++i)
+        {
+            delete _pool[i];
+        }
+    }
+    // 开启线程池
+    void startPool(int size)
+    {
+        for (int i = 0; i < size; ++i)
+        {
+            _pool.push_back(new Thread(bind(&ThreadPool::runInThread, this, placeholders::_1), i));
+        }
+        for (int i = 0; i < size; ++i)
+        {
+            _handler.push_back(_pool[i]->start());
+        }
+        for (thread &t : _handler)
+        {
+            t.join();
+        }
+    }
+
+private:
+    vector<Thread *> _pool;
+    vector<thread> _handler;
+    // 把runInThread这个成员方法充当线程函数 thread pthread_create
+    void runInThread(int id)
+    {
+        cout << "call runInThread! id:" << id << endl;
+    }
+};
+
+int main()
+{
+    ThreadPool pool;
+    pool.startPool(1000);
+
+    return 0;
+}
+
+#if 0 // bind和function的使用
+void hello(string str) { cout << str << endl; }
+int sum(int a, int b) { return a + b; }
+class Test
+{
+public:
+    int sum(int a, int b) { return a + b; }
+};
+
+int main()
+{
+    // bind是函数模板 可以自动推演模板类型参数
+    bind(hello, "hello bind")();
+    cout << bind(sum, 10, 20)() << endl;
+    cout << bind(&Test::sum, Test(), 10, 20)() << endl;
+
+    // 参数占位符
+    bind(hello, placeholders::_1)("hello placeholders::_1"); 
+
+    // 此处把bind返回的绑定器binder就复用起来了
+    function<void(string)> func1 = bind(hello, placeholders::_1);
+    func1("hello func1.1");
+    func1("hello func1.2");
+
+    return 0;
+}
+#endif
+```
+
+### lambda表达式的实现原理
+
+```cpp
+#include <iostream>
+#include <vector>
+#include <algorithm>
+using namespace std;
+
+/*
+函数对象的缺点：
+使用在泛型算法参数传递    比较性质/自定义操作    优先级队列    智能指针
+
+lambda表达式的语法：
+[捕获列表](参数列表) -> 返回值类型 {函数体}
+
+如果lambda表达式没有返回值，那么返回值类型可以省略
+
+[捕获外部变量]
+[]: 不捕获任何变量
+[&]: 按引用捕获外部所有变量
+[=]: 按值捕获外部所有变量
+[this]：捕获外部的this指针
+[=, &a]: 按值捕获外部所有变量，但是a按引用捕获
+[a, b]：按值捕获a和b，但是如果外部没有定义a和b，编译器会报错
+[&a, &b]：按引用捕获a和b，但是如果外部没有定义a和b，编译器会报错
+[=, &a, &b]：按值捕获外部所有变量，但是a和b按引用捕获
+[&, a, b]：按引用捕获外部所有变量，但是a和b按值捕获
+[=, &a, b]：按值捕获外部所有变量，但是a按引用捕获，b按值捕获
+[&, a, &b]：按引用捕获外部所有变量，但是a按值捕获，b按引用捕获
+*/
+
+template <typename T = void>
+class TestLambda01
+{
+public:
+    void operator()()
+    {
+        cout << "hello2" << endl;
+    }
+};
+template <typename T = int>
+class TestLambda02
+{
+public:
+    int operator()(int a, int b)
+    {
+        return a + b;
+    }
+};
+template <typename T = int>
+class TestLambda03
+{
+public:
+    TestLambda03(int &a, int &b) : ma(a), mb(b) {}
+    void operator()() const
+    {
+        int tmp = ma;
+        ma = mb;
+        mb = tmp;
+    }
+
+private:
+    int &ma;
+    int &mb;
+};
+
+int main()
+{
+    auto func1 = []()
+    { cout << "hello1" << endl; };
+    func1(); // hello1
+    // 和上面等价
+    TestLambda01<> t1;
+    t1(); // t1.operator()()
+
+    auto func2 = [](int a, int b) -> int
+    { return a + b; };
+    cout << func2(10, 20) << endl; // 30
+    // 和上面等价
+    TestLambda02<> t2;
+    cout << t2(10, 20) << endl; // 30
+
+    int a = 10;
+    int b = 20;
+    auto func3 = [&a, &b]()
+    {
+        int tmp = a;
+        a = b;
+        b = tmp;
+    };
+    func3();
+    cout << a << " " << b << endl; // 20 10
+    // 和上面等价
+    TestLambda03<> t3(a, b);
+    t3();
+    cout << a << " " << b << endl; // 10 20
+
+    cout << "------------------------" << endl;
+
+    vector<int> vec;
+    for (int i = 0; i < 10; i++)
+    {
+        vec.push_back(rand() % 100 + 1);
+    }
+    sort(vec.begin(), vec.end(), [](int a, int b) -> bool
+         { return a < b; });
+    for (auto &val : vec)
+        cout << val << " ";
+    cout << endl;
+    // 65按序插入序列 要找第一个小于65的数
+    auto it = find_if(vec.begin(), vec.end(), [](int a) -> bool
+                      { return a > 65; });
+    if (it != vec.end())
+    {
+        vec.insert(it, 65);
+    }
+    for (auto &val : vec)
+        cout << val << " ";
+    cout << endl;
+
+    for_each(vec.begin(), vec.end(), [](int &a)
+             { if (a % 2 == 0) cout << a << " "; });
+    cout << endl;
+
+    return 0;
+}
+```
+
+### lambda表达式的应用实践
+
+```cpp
+#include <iostream>
+#include <algorithm>
+#include <vector>
+#include <functional>
+#include <map>
+#include <memory>
+#include <queue>
+using namespace std;
+
+/*
+既然lambda表达式只能使用在语句当中，如果想跨语句使用之前定义好的lambda表达式，
+怎么办？用什么类型来表示lambda表达式？
+当然是用function类型来表示函数对象的类型了
+
+lambda表达式 =》 函数对象
+*/
+
+class Data
+{
+public:
+    Data(int a = 10, int b = 20) : ma(a), mb(b) {}
+    // bool operator>(const Data &data) const { return ma > data.ma; }
+    // bool operator<(const Data &data) const { return ma < data.ma; }
+    int ma;
+    int mb;
+};
+
+int main()
+{
+    // 优先级对象
+    using FUNC = function<bool(Data, Data)>;
+    // priority_queue<Data> queue;
+    priority_queue<Data, vector<Data>, FUNC> queue([](Data a, Data b) -> bool { return a.ma > b.ma; });
+    queue.push(Data(10, 20));
+    queue.push(Data(15, 15));
+    queue.push(Data(20, 10));
+
+#if 0
+    // 智能指针自定义删除器
+    unique_ptr<int, function<void(int *)>> ptr1(new int(10), [](int *p)
+                                                { delete p; cout << "delete" << endl; });
+    unique_ptr<FILE, function<void(FILE *)>> ptr2(fopen("test.txt", "w"), [](FILE *pf)
+                                                  { fclose(pf); cout << "fclose" << endl; });
+#endif
+
+#if 0
+    map<int, function<int(int, int)>> caculateMap;
+    caculateMap[1] = [](int a, int b) -> int { return a + b; };
+    caculateMap[2] = [](int a, int b) -> int { return a - b; };
+    caculateMap[3] = [](int a, int b) -> int { return a * b; };
+    caculateMap[4] = [](int a, int b) -> int { return a / b; };
+
+    cout << "intput your choice: ";
+    int choice;
+    cin >> choice;
+    cout << "10 + 20 = " << caculateMap[choice](10, 20) << endl;
+#endif
+
+    return 0;
+}
+```
+
+## C++ 11常用知识点
+
+```cpp
+/*
+C++11 标准相关的内容 总结一下
+一：关键字和语法
+auto：可以根据右值，推导出右值的类型，然后左边变量的类型也就确定了
+nullptr：给指针专用（能够和整数进行区分） #define NULL 0
+foreach：可以遍历数组，容器等
+for (Type Val : container) => 底层就是通过指针或者迭代器来实现的
+右值引用：move语义函数和forward类型完美转发函数
+模板的一个新特性：typename... A 表示可变参（类型参数）
+
+二：绑定器和函数对象
+function：函数对象
+bind：绑定器    bind1st和bind2nd + 二元函数对象 =》 一元函数对象
+
+三：智能指针
+shared_ptr和weak_ptr
+
+四：容器
+set和map：红黑树 O(logN)
+unordered_set和unordered_map：哈希表 O(1)
+array：数组 vector
+forward_list：单向链表 list
+*/
+```
+
+### mutex互斥锁和lock_guard
+
+```cpp
+#include <iostream>
+#include <thread>
+#include <list>
+#include <mutex>
+using namespace std;
+
+/*
+模拟车站三个窗口买票的场景
+*/
+int ticketCount = 100; // 假设一共有100张票，由三个窗口一起卖票
+mutex mtx;             // 互斥量
+
+// 模拟卖票的线程函数
+void sellTicket(int index)
+{
+    while (ticketCount > 0)
+    {
+        // mtx.lock(); // 加锁
+        {
+            lock_guard<mutex> lock(mtx);
+            if (ticketCount > 0)
+            {
+                cout << "窗口" << index << "卖出了第" << ticketCount << "张票" << endl;
+                ticketCount--;
+            }
+        } // 离开作用域，lock_guard自动解锁
+        // mtx.unlock(); // 解锁
+        this_thread::sleep_for(chrono::milliseconds(100));
+    }
+}
+
+int main()
+{
+    list<thread> tlist;
+    for (int i = 1; i <= 3; ++i)
+    {
+        tlist.push_back(thread(sellTicket, i));
+    }
+    for (thread &t : tlist)
+    {
+        t.join();
+    }
+
+    return 0;
+}
+```
+
+### 线程同步通信
+
+```cpp
+#include <iostream>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <queue>
+using namespace std;
+
+/*
+C++多线程编程 - 线程间的同步通信机制
+多线程编程两个问题：
+1.线程间的互斥
+竟态条件 =》 临界区代码段 => 保证原子操作 =》 互斥锁mutex 轻量级的无锁实现CAS
+2.线程间的同步通信
+生产者消费者模型
+
+*/
+class Queue
+{
+public:
+    void put(int val)
+    {
+        unique_lock<mutex> lock(mtx); // 互斥锁，保证线程安全
+        if (!que.empty())
+        {
+            // que不为空，生产者应该通知消费者去消费，消费完了，再继续生产
+            // 生产者线程应该进入等待状态，并且把mtx互斥锁释放掉            
+            cv.wait(lock);
+        }
+        que.push(val);
+        cout << "生产者 生产：" << val << "号物品" << endl;
+        /*
+        通知其它线程，可以去消费了
+        其它线程得到通知，就会从等待状态 =》 阻塞状态 =》 获取互斥锁 =》 执行代码
+        */ 
+        cv.notify_all(); 
+    }
+
+    int get()
+    {
+        unique_lock<mutex> lock(mtx);
+        while (que.empty())
+        {
+            // 消费者线程发现que是空的，通知生产者线程先生产物品
+            // 进入等待状态，并且把mtx互斥锁释放掉            
+            cv.wait(lock); // 等待
+        }
+        int val = que.front();
+        cout << "消费者 消费：" << val << "号物品" << endl;
+        que.pop();
+        cv.notify_all(); // 消费完了，通知生产者线程，可以去生产了
+        return val;
+    }
+private:
+    queue<int> que;
+    mutex mtx; // 定义互斥锁，做线程间的互斥操作
+    condition_variable cv; // 定义条件变量，做线程间的同步通信操作
+};
+
+void producer(Queue *que)
+{
+    for (int i = 0; i < 1000; ++i)
+    {
+        que->put(i);
+        // this_thread::sleep_for(chrono::milliseconds(100));
+    }
+}
+void consumer(Queue *que)
+{
+    for (int i = 0; i < 1000; ++i)
+    {
+        que->get();
+        // this_thread::sleep_for(chrono::milliseconds(100));
+    }
+}
+
+int main()
+{
+    Queue que; // 两个线程共享的队列
+
+    thread t1(producer, &que);
+    thread t2(consumer, &que);
+
+    t1.join();
+    t2.join();
+
+    return 0;
+}
+```
+
+### atomic原子类型
+
+```cpp
+#include <iostream>
+#include <atomic>
+#include <thread>
+#include <list>
+using namespace std;
+
+volatile atomic_bool isReady(false);
+volatile atomic_int mycount(0);
+
+void task()
+{
+    while (!isReady)
+    {
+        this_thread::yield(); // 线程让出当前的CPU时间片，让其它线程去执行
+    }
+    for (int i = 0; i < 100; ++i)
+    {
+        mycount ++;
+    }
+}
+
+int main()
+{
+    list<thread> threads;
+    for (int i = 0; i < 10; ++i)
+    {
+        threads.push_back(thread(task));
+    }
+
+    // this_thread::sleep_for(chrono::seconds(3));
+    isReady = true;
+
+    for (auto &t : threads)
+    {
+        t.join();
+    }
+    cout << "mycount: " << mycount << endl;
+
+    return 0;
+}
+```
+
+### emplace刨析
+
+```cpp
+#include <iostream>
+// #include <vector>
+using namespace std;
+
+class Test
+{
+public:
+    Test(int a) {cout << "Test(int)" << endl;}
+    Test(int a, int b) {cout << "Test(int, int)" << endl;}
+    ~Test() {cout << "~Test()" << endl;}
+    Test(const Test &t) {cout << "Test(const Test &)" << endl;}
+    Test(Test &&t) {cout << "Test(Test &&)" << endl;}
+private:
+};
+
+// 实现容器的空间配置器
+template <typename T>
+struct MyAllocator
+{
+    T *allocate(size_t size)
+    {
+        cout << "allocate" << endl;
+        return (T *)malloc(sizeof(T) * size);
+    }
+    void deallocate(T *p, size_t size)
+    {
+        cout << "deallocate" << endl;
+        
+    }
+    template<typename... Args> 
+    void construct(T *p, Args&&... args)
+    {
+        cout << "construct" << endl;
+        new(p) T(std::forward<Args>(args)...);
+    }
+};
+
+template<typename T, typename Alloc = MyAllocator<T>>
+class vector
+{
+public:
+    vector() : vec_(nullptr), size_(0), idx_(0) {}
+    // 预留内存空间
+    void reserve(size_t size)
+    {
+        vec_ = allocator_.allocate(size);
+        size_ = size;
+    }
+    // push_back
+    /*
+    void push_back(const T &val)
+    {
+        allocator_.construct(vec_ + idx_, val);
+        idx_++;
+    }
+    void push_back(T &&val)
+    {
+        allocator_.construct(vec_ + idx_, std::move(val));
+        idx_++;
+    }
+    */
+    template<typename Type>
+    void push_back(Type &&val)
+    {
+        allocator_.construct(vec_ + idx_, std::forward<Type>(val));
+        idx_++;
+    }
+    // emplace_back
+    template<typename... Args>
+    void emplace_back(Args&&... args)
+    {
+        // 不管左值引用、右值引用变量，它本身是个左值。传递的过程中，要保持args的引用类型
+        allocator_.construct(vec_ + idx_, std::forward<Args>(args)...);
+        idx_++;
+    }
+private:
+    T *vec_; // 指向动态开辟的空间
+    int size_;  // 空间的大小
+    int idx_; // 当前元素的个数
+    Alloc allocator_; // 空间配置器
+};
+
+int main()
+{
+
+#if 1
+    Test t1(10);
+    vector<Test> v;
+    v.reserve(100); // 先开辟100个空间
+    cout << "----------------" << endl;
+
+    // 直接插入对象，两个没有区别
+    v.push_back(t1); // Test(const Test &)
+    v.emplace_back(t1); // Test(const Test &)
+    cout << "----------------" << endl;
+    /*
+    Test(int) // 临时对象
+    Test(Test &&) // 移动构造
+    ~Test() // 临时对象析构
+    */
+    v.push_back(Test(20));
+    v.emplace_back(Test(20));
+    cout << "----------------" << endl;
+
+    v.push_back(20); // Test(int)和Test(Test &&)
+    v.emplace_back(30); // Test(int)
+    cout << "----------------" << endl;
+#endif
+
+    return 0;
+}
 ```
