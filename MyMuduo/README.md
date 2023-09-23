@@ -66,7 +66,7 @@ non-blocking 几乎总是和 IO-multiplexing 一起使用，原因有两点：
 
 - **TcpConnection的引用存在于**
   
-  - **TcpServe**中的`connections_<name,TcpConnectionPtr>`。shared_ptr。**引用计数 = 1
+  - **TcpServe**中的`connections_<name,TcpConnectionPtr>`。shared_ptr引用计数 = 1
   - **channel 中的weak_ptr 当handleEvent时 会lock为shared_ptr(即TcpConnectionPtr)** 。引用计数++ 保证在handleEvent时不会析构TcpConnection，因为
   - 还有就是在连接断开时的局部变量TcpConnectionPtr 以及 bind参数时候的拷贝TcpConnectionPtr。
 
@@ -105,7 +105,7 @@ while(1)
   
   - Poller
 
-<img src="assets/d123bf0319784a2f58138e49ac14c80be8520936.png" title="" alt="" width="743">
+<img title="" src="assets/d123bf0319784a2f58138e49ac14c80be8520936.png" alt="" width="743">
 
 **作用：循环 监听事件，获取活跃事件，并且根据发生events，来handleEvent**
 
@@ -204,8 +204,11 @@ while(1)
   - setsubThreadNum
     
     - 设置subReactor数量。
+      
       - num = 0. 则只有一个reactor，既负责监听、处理listening fd的新连接建立事件，又负责监听、处理已连接socket connfd的读写事件。
+      
       - num > 0. 则一个mainReactor num个subReacor。
+        
         - mainReactor 的mainloop负责监听处理listeningfd的新连接建立事件。
         - subReactor 的subloop负责监听处理connfd的读写事件)
         
@@ -215,9 +218,7 @@ while(1)
 
 - **Acceptor**：封装了listening fd 以及 连接event 以及 处理连接事件的callback ： handleConnection
 
-- 
-  
-  - acceptSocket_：listening fd
+- - acceptSocket_：listening fd
   - acceptChannel_：listening fd 以及 监听事件 以及 回调
   - EventLoop *loop：listening fd 所属的eventLoop。一般是main thread 的 eventLoop.
   - newConnectionCallback_: TcpServer构造函数中将 TcpServer::newConnection 绑定给acceptor。故acceptor接收连接之后 分发client的channel给ioloop。
