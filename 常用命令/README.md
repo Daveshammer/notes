@@ -1,3 +1,5 @@
+### Git
+
 #### 全局设置
 
 `git config --global user.name xxx`：设置全局用户名，信息记录在`~/.gitconfig`文件中
@@ -74,5 +76,31 @@
 `git stash drop`：删除栈顶存储的修改
 `git stash pop`：将栈顶存储的修改恢复到当前分支，同时删除栈顶元素
 `git stash list`：查看栈中所有元素
+
+### WinDbg
+
+`g`：跳过当前中断，继续运行
+
+`.ecxr`：切换到发生异常的线程中，即异常上下文
+
+`kn/kv/kp`：查看当前线程的函数调用堆栈
+
+`lm`：查看exe或dll二进制文件的详细信息，比如路径、时间戳等，例如`lm vm libcurl*`
+
+`.reload`：加载pdb文件，例如`.reload /f libcurl.dll` 强制加载libcurl.dll库的pdb文件
+
+`~`：查看当前进程的所有线程信息
+
+`~ns`：切换到n号线程中
+
+`!analyze`：详细分析当前异常，完整的命令为：`!analyze -v`
+
+`.dump`：导出dump文件，`dump /ma D:\20230415.dmp`
+
+`bp/bl/bc`：添加断点、罗列所有断点、清除断点
+
+`r`：查看当前线程所有寄存器的值
+
+`.effmach x86`：从任务管理器中导出的32位程序的dump文件需要手动切换到32位上下文
 
 
