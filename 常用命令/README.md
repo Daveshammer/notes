@@ -1,18 +1,38 @@
 ### Git
 
+#### 工作常用
+
+```git
+// 每修改完push流程
+git status // 查看修改了哪些文件
+git add XX
+git commit -m "v70.9:remove if(bWait) in QueueSubmit_VK"
+git checkout -b "damondai" // 新建分支并切换过来
+git tag -a v70.9
+git push --set-upstream origin damondai
+git push --tag
+
+
+// push完可以删除本地临时分支
+git branch -d damondai
+```
+
 #### 全局设置
 
 `git config --global user.name xxx`：设置全局用户名，信息记录在`~/.gitconfig`文件中
 `git config --global user.email xxx@xxx.com`：设置全局邮箱地址，信息记录在`~/.gitconfig`文件中
 `git init`：将当前目录配置成git仓库，信息记录在隐藏的`.git`文件夹中
 
-#### 常用命令
+#### 个人常用
 
 `git add XX` ：将XX文件添加到暂存区
 `git commit -m "给自己看的备注信息"`：将暂存区的内容提交到当前分支
 `git status`：查看仓库状态
 `git log`：查看当前分支的所有版本
 `git push -u (第一次需要-u以后不需要) `：将当前分支推送到远程仓库
+
+`git push --force`：在本地进行了一些修改，还未提交，想要强制拉取覆盖本地修改
+
 `git clone git@git.acwing.com:xxx/XXX.git`：将远程仓库XXX下载到当前目录下
 `git branch`：查看所有分支和当前所处分支
 
@@ -102,5 +122,109 @@
 `r`：查看当前线程所有寄存器的值
 
 `.effmach x86`：从任务管理器中导出的32位程序的dump文件需要手动切换到32位上下文
+
+### vim
+
+`G`：光标移动到最后一行
+
+`:n` 或 nG：n为数字，光标移动到第n行
+
+`gg`：光标移动到第一行，相当于1G
+
+`/word`：向光标之下寻找第一个值为word的字符串
+
+`?word`：向光标之上寻找第一个值为word的字符串
+
+`n`：重复前一个查找操作
+
+`N`：反向重复前一个查找操作
+
+`:n1,n2s/word1/word2/g`：n1与n2为数字，在第n1行与n2行之间寻找word1这个字符串，并将该字符串替换为word2
+
+`:1,$s/word1/word2/g`：将全文的word1替换为word2
+
+`:1,$s/word1/word2/gc`：将全文的word1替换为word2，且在替换前要求用户确认
+
+`v`：选中文本
+
+`d`：删除选中的文本
+
+`dd`: 删除当前行
+
+`y`：复制选中的文本
+
+`yy`: 复制当前行
+
+`p`: 将复制的数据在光标的下一行/下一个位置粘贴
+
+`u`：撤销
+
+`Ctrl + r`：取消撤销
+
+`大于号 >`：将选中的文本整体向右缩进一次
+
+`小于号 <`：将选中的文本整体向左缩进一次
+
+`:set paste` ：设置成粘贴模式，取消代码自动缩进
+
+`:set nopaste`： 取消粘贴模式，开启代码自动缩进
+
+`:set nu`： 显示行号
+
+`:set nonu`： 隐藏行号
+
+`gg=G`：将全文代码格式化
+
+`:noh`： 关闭查找关键词高亮
+
+### SSH
+
+`ssh user@hostname`
+
+#### 配置文件
+
+创建文件 `~/.ssh/config`
+
+然后在文件中输入：
+
+```
+Host myserver1
+ HostName IP地址或域名
+ User 用户名
+
+Host myserver2
+ HostName IP地址或域名
+ User 用户名
+```
+
+之后再使用服务器时，可以直接使用别名`myserver1`、`myserver2`
+
+#### 密钥登录
+
+创建密钥：
+
+`ssh-keygen`
+
+然后一直回车即可。
+
+执行结束后，`~/.ssh/`目录下会多两个文件：
+
+`id_rsa`：私钥
+`id_rsa.pub`：公钥
+之后想免密码登录哪个服务器，就将公钥传给哪个服务器即可。
+
+例如，想免密登录`myserver`服务器。则将公钥中的内容，复制到`myserver`中的`~/.ssh/authorized_keys`文件里即可。
+
+也可以**使用命令一键添加公钥**：
+
+`ssh-copy-id myserver`
+
+### SCP
+
+`scp 211:/home/djf/pmem1/a.txt .`：将211的`/home/djf/pmem1/a.txt`复制到当前目录下
+
+`scp .\b.txt 211:/home/djf/pmem1/tmp`：将当前目录下的b.txt文件上传到211的`/home/djf/pmem1/tmp`目录下
+
+`scp -r 211:/home/djf/pmem1 .`：将211目录`/home/djf/pmem1`下的所有文件复制到当前目录
 
 
