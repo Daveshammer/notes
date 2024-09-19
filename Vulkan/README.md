@@ -1,4 +1,6 @@
-#### Vulkan Tutorial中的同步问题
+### Vulkan Tutorial
+
+#### 同步问题
 
 `drawFram()`中
 
@@ -18,7 +20,34 @@ CPU处理一帧，GPU渲染一帧，然后CPU再处理下一帧，CPU与GPU之�
 
 到这里实际上就完成了预渲染的实现，但是在Tutorial里还考虑了更细致的情况。如果`MAX_FRAMES_IN_FLIGHT`里的image数量比swap chain里的更多，那我们还是会遇到跟之前一样的情况（假想`MAX_FRAMES_IN_FLIGHT`很大很大，CPU的行为还是不管GPU不断提交任务）。为了避免这种情况出现，我们还需要为swap chain里每个image再增加一个记录使用情况的fence：`image_in_flight`。Tutorial里的实现比较神奇，`image_in_flight`实际上并不是创建出来的，而是从`in_flight_fence`里复制来的。当预渲染帧（虚拟）通过`vkAcquireNextImageKHR`得到了一个image，就把对应的`in_flight_fence`复制到对应的`image_in_flight`。在后面的循环中如果`vkAcquireNextImageKHR`给出了跟之前一样的`image index`（通过检查`image_in_flight`不为空），就先等之前的任务完成完，也就是等待这个`image_in_flight`的fence。好，现在的情况是同一个fence可能在最开始的`in_flight_fence`的地方被block住，也可能在`image_in_flight`的地方被block住，如果我们在第一个`in_flight_fence`的地方等到了然后立刻`vkResetFences`，运行到`image_in_flight`的时候还是会被block住，此时完全没有机会被解锁，所以最好的做法是把`vkResetFences`从第一次等待之后移动到`vkQueueSubmit`之前，这样就不会出现任何问题了。
 
-#### qReplay
+#### Descriptor
+
+Descriptor是一个不透明的数据结构，代表一个着色器资源，如Buffer、Buffer View、Imgae、Sampler、Combined Image Sampler。
+
+Descriptor会被组织成DescriptorSet，在Command Record过程中被绑定，以便在随后的DrawCall中使用。每个DescriptorSet的内容安排是由DescriptorSet Layout决定的，它决定了哪些Descriptor可以被存储在其中。
+
+Binding Model：
+
+- DescriptorSetLayout由Descriptor Binding组成，会控制每个Descriptor的排列方式。
+- Descriptor Binding将Descriptor和shader进行绑定，给shader提供了对资源操作的接口。
+- DescriptorSet需要指定DescriptorSetLayout最后由DescriptorPool来真正分配出来。
+- 通过VkWriteDescriptorSet/VkCopyDescriptorSet来真正将资源绑定或者更新数据。
+- PipelineLayout通过DescriptorSetLayout以及PushConst创建并完成整个PipeLine的数据绑定。
+- 最后使用vkCmdBindDescriptorSets完成对于DescriptorSet的绑定。
+
+#### RenderPass & Attachment &Framebuffer
+
+- Attachment只是资源描述(元数据)定义一些加载/存储操作以及相应资源的格式
+
+- 一个Attachment对应于一个VkImageView
+
+- RenderPass可以通过Framebuffer来获得实际的Image
+
+- RenderPass其实是通过Framebuffer中包含的ImageView拿到真正的数据
+
+RenderPass需要与Framebuffer获取到真正的Image才可以渲染出真正的结果。Framebuffer代表了RenderPass所使用的特定内存的集合，也就是Attachment真正对应的内存。已经了解到RenderPass只是元数据，真正的Image需要从Framebuffer中获取。Framebuffer会定义了哪个ImageView是对应到RenderPass的哪个Attachment。ImageView定义了要使用Image的哪一部分。Image定义了哪个物理内存被使用以及Texel的格式。
+
+### qReplay
 
 `rp_execf_vk.cpp`
 
