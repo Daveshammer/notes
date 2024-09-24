@@ -227,4 +227,6 @@ Host myserver2
 
 `scp -r 211:/home/djf/pmem1 .`：将211目录`/home/djf/pmem1`下的所有文件复制到当前目录
 
+### Linux
 
+分割文件：`split -b 1M api_dump.txt smallfile`
