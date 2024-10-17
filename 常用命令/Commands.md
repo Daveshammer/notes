@@ -33,7 +33,7 @@ git branch -d damondai
 
 `git push --force`：在本地进行了一些修改，还未提交，想要强制拉取覆盖本地修改
 
-`git clone git@git.acwing.com:xxx/XXX.git`：将远程仓库XXX下载到当前目录下
+`git clone --recursive git@git.acwing.com:xxx/XXX.git`：将远程仓库XXX下载到当前目录下
 `git branch`：查看所有分支和当前所处分支
 
 #### 查看命令
@@ -52,7 +52,7 @@ git branch -d damondai
 
 `git rm --cached XX`：将文件从仓库索引目录中删掉，不希望管理这个文件
 `git restore --staged xx`：==将`xx`从暂存区里移除==
-`git checkout — XX或git restore XX`：==将`XX`文件尚未加入暂存区的修改全部撤销==
+`git checkout -- XX或git restore XX`：==将`XX`文件尚未加入暂存区的修改全部撤销==
 
 #### 代码回滚
 
