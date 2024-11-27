@@ -6,15 +6,18 @@
 // 每修改完push流程
 git status // 查看修改了哪些文件
 git add XX
-git commit -m "v70.9:remove if(bWait) in QueueSubmit_VK"
+git commit -m "v17.1: add lvk_ToStr(const VkObjectType &tv)"
 git checkout -b "damondai" // 新建分支并切换过来
-git tag -a v70.9
+git tag -a v17.1 -m "v17.1: add lvk_ToStr(const VkObjectType &tv)"
 git push --set-upstream origin damondai
 git push --tag
 
-
 // push完可以删除本地临时分支
+git checkout main
 git branch -d damondai
+
+// clone仓库+子模块
+git clone --recursive xxx
 ```
 
 #### 全局设置
